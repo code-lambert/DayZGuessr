@@ -1,0 +1,387 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DayZ Geoguessr - Namalsk</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5.8.2/index.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/compass-plugin@5.8.2/index.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+/* --- Base Layout & Viewer --- */
+html, body { 
+    margin: 0; padding: 0; width: 100%; height: 100%; 
+    overflow: hidden; font-family: sans-serif; background: #000; 
+}
+#viewer { width: 100vw; height: 100vh; z-index: 1; }
+
+/* --- Minimap Container (The "Hover Scale" Trick) --- */
+#map-container {
+    position: absolute; bottom: 20px; right: 20px;
+    width: 550px; 
+    aspect-ratio: 5481 / 5502;
+    height: auto;
+    z-index: 2000;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 8px; border-radius: 12px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+	transform: scale(0.45);
+    transform-origin: bottom right;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 1;
+}
+
+#map-container:hover, #map-container.sticky-results {
+    transform: scale(1);
+    opacity: 1;
+}
+
+#minimap { 
+    flex-grow: 1; width: 100%; border-radius: 8px; 
+    cursor: crosshair; background: #1a1a1a; 
+}
+
+/* --- The Guess Button & Inverse Text Scaling --- */
+#guess-button {
+    margin-top: 10px; padding: 12px;
+    background: #e67e22; color: white;
+    border: none; border-radius: 6px;
+    font-weight: bold; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 1px;
+    width: 100%;
+    display: flex; justify-content: center; align-items: center;
+    overflow: visible; /* Ensure text doesn't clip when scaled up */
+}
+
+#guess-button:hover { background: #d35400; }
+
+/* The Text Span: We counter-scale this so it stays 100% size visually */
+#guess-button span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+    white-space: nowrap;
+}
+
+/* When the map is SMALL (0.45x), scale the text UP (~2.22x) */
+#map-container:not(:hover):not(.sticky-results) #guess-button span {
+    transform: scale(2.22);
+}
+
+/* When the map is LARGE (1.0x), scale the text to NORMAL (1.0x) */
+#map-container:hover #guess-button span, 
+#map-container.sticky-results #guess-button span {
+    transform: scale(1);
+}
+
+/* --- Sidebar & Menu --- */
+#menu-icon {
+    position: absolute; top: 20px; left: 20px;
+    font-size: 30px; color: white; cursor: pointer;
+    z-index: 3000; background: rgba(0,0,0,0.6);
+    padding: 5px 12px; border-radius: 8px;
+}
+
+#sidebar {
+    position: absolute; top: 0; left: -300px;
+    width: 260px; height: 100%;
+    background: rgba(15, 15, 15, 0.95);
+    color: white; z-index: 2999;
+    transition: left 0.3s ease;
+    padding-top: 80px;
+}
+
+#sidebar.open { left: 0; }
+
+.menu-item { 
+    padding: 15px 25px; cursor: pointer; 
+    border-bottom: 1px solid #222; transition: 0.2s;
+}
+
+.menu-item:hover:not(.disabled) { color: #e67e22; background: #222; }
+
+.menu-item.active { color: #e67e22; font-weight: bold; }
+
+.submenu-item { 
+    padding: 12px 45px; cursor: pointer; 
+    font-size: 14px; background: #1a1a1a; 
+    border-bottom: 1px solid #222;
+}
+
+.submenu-item:hover { color: #e67e22; }
+
+.disabled { color: #666; cursor: not-allowed; font-style: italic; }
+
+/* --- Modals & Overlays --- */
+.modal {
+    display: none; position: fixed; z-index: 4000;
+    left: 0; top: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+}
+
+.modal-content {
+    background: #111; margin: 10% auto; padding: 40px;
+    border: 2px solid #444; width: 450px; border-radius: 20px;
+    text-align: center; color: white; position: relative;
+}
+
+.crypto-panel { 
+    width: 100%; cursor: pointer; 
+    transition: transform 0.2s; margin-bottom: 15px; 
+}
+
+.crypto-panel:hover { transform: scale(1.05); }
+
+.crypto-panel img { width: 100%; height: auto; display: block; border-radius: 8px; }
+
+.fullscreen-overlay {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+    z-index: 5000; flex-direction: column; justify-content: center; align-items: center;
+}
+    </style>
+</head>
+<body>
+
+<div id="menu-icon">&#9776;</div>
+<div id="sidebar">
+    <div class="menu-item disabled">Chernarus (Soon)</div>
+    <div class="menu-item active" onclick="toggleSubmenu()">Namalsk &#9662;</div>
+    <div id="namalsk-submenu" style="display: block;">
+        <div class="submenu-item" onclick="changeMode('spawns')">Spawns</div>
+        <div class="submenu-item" onclick="changeMode('random')">Random</div>
+    </div>
+    <div class="menu-item" style="color: #f1c40f;" onclick="openDonate()">Donate</div>
+</div>
+
+<div id="viewer"></div>
+
+<div id="map-container">
+    <div id="minimap"></div>
+	<button id="guess-button"><span>Make Guess</span></button>
+</div>
+
+<div id="donate-modal" class="modal" onclick="closeDonateViaBackdrop(event)">
+    <div class="modal-content" id="donate-content">
+        <h2 style="color: #f1c40f;">Support the Project</h2>
+        <div class="crypto-panel" onclick="openFullscreen('images/donate-nano-qr.png')">
+            <img src="images/donate-nano-qr.png">
+        </div>
+        <div class="crypto-panel" onclick="openFullscreen('images/donate-banano-qr.png')">
+            <img src="images/donate-banano-qr.png">
+        </div>
+    </div>
+</div>
+
+<div id="qr-fullscreen" class="fullscreen-overlay" onclick="closeFullscreen()">
+    <img id="fullscreen-img" style="max-width: 90%; max-height: 80%; border-radius: 10px;">
+    <p style="color: #666; margin-top: 20px;">Click to close</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5.8.2/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/compass-plugin@5.8.2/index.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-semicircle@2.0.4/Semicircle.min.js"></script>
+
+<script>
+    /* 1. Configuration & Pools */
+    const pools = {
+        spawns: [
+            '6065,11802.webp', '4182,11026.webp', '5102,11307.webp', '4363,10578.webp', 
+            '5893,11701.webp', '4186,10754.webp', '4990,11358.webp', '4776,11213.webp', 
+            '6363,11921.webp', '5008,11099.webp', '6191,11905.webp', '6551,12022.webp', 
+            '7021,11899.webp', '7195,11889.webp', '7569,11759.webp', '7350,11869.webp', 
+            '6806,11952.webp', '7085,11819.webp', '7685,11798.webp', '8443,11350.webp', 
+            '8243,11459.webp', '7873,11650.webp', '8049,11559.webp', '8635,11129.webp', 
+            '8884,10614.webp', '4563,10352.webp', '8683,10903.webp', '7579,9994.webp', 
+            '8446,10026.webp', '7920,10107.webp', '8205,10027.webp', '8667,9835.webp', 
+            '8949,9876.webp', '9059,10387.webp', '8566,9989.webp', '8783,9900.webp', 
+            '6649,11966.webp', '8577,11202.webp', '8603,11009.webp', '8982,10480.webp', 
+            '9127,10233.webp', '8146,10172.webp', '8775,10812.webp'
+        ],
+        random: ['1234,5678.webp', '8888,9999.webp'] 
+    };
+
+    let currentMode = sessionStorage.getItem('gameMode') || 'spawns';
+    let selectedPano = "";
+
+    /* 2. Coordinate Math */
+    const imgWidth = 5481, imgHeight = 5502;
+    const bounds = [[0, 0], [imgHeight, imgWidth]];
+
+    function dayzToLeaflet(x, y) {
+        const lng = (x - 857.8) / 1.6931;
+        const lat = imgHeight - ((y - 12962.5) / -1.6931);
+        return [lat, lng];
+    }
+
+    function leafletToDayZ(latlng) {
+        return {
+            x: Math.round(1.6931 * latlng.lng + 857.8),
+            y: Math.round(-1.6931 * (imgHeight - latlng.lat) + 12962.5)
+        };
+    }
+
+    /* 3. Initialize Map */
+    const map = L.map('minimap', {
+        crs: L.CRS.Simple,
+        minZoom: -3.5, maxZoom: 2, zoomControl: false,
+        zoomSnap: 0, zoomDelta: 0.1, wheelPxPerZoomLevel: 120,
+        maxBounds: bounds, maxBoundsViscosity: 1.0
+    });
+    L.imageOverlay('images/NamalskMap.png', bounds).addTo(map);
+    map.setView(dayzToLeaflet(3300, 10700), -3.2);
+    setTimeout(() => map.invalidateSize(), 0);
+
+    /* 4. Initialize Viewer & Randomizer */
+	const viewer = new PhotoSphereViewer.Viewer({
+		container: '#viewer',
+		navbar: false,
+		zoomSpeed: 5,
+		defaultFov: 90,
+		maxFov: 90,
+		minFov: 10,
+		plugins: [[PhotoSphereViewer.CompassPlugin, { size: '120px', position: 'top right' }]]
+	});
+
+	function loadValidPano() {
+		const lastPano = sessionStorage.getItem('lastPano');
+		const available = pools[currentMode].filter(loc => loc !== lastPano);
+		
+		if (available.length === 0) {
+			sessionStorage.removeItem('lastPano');
+			return loadValidPano();
+		}
+
+		selectedPano = available[Math.floor(Math.random() * available.length)];
+
+		// We pass the reset options as the second argument to setPanorama
+		viewer.setPanorama(`images/namalsk/${currentMode}/${selectedPano}`, {
+			position: { yaw: 0, pitch: 0 },
+			zoom: 0,
+			transition: false // Set to true if you want a smooth fade instead of a snap
+		})
+		.then(() => {
+			sessionStorage.setItem('lastPano', selectedPano);
+			// No need for viewer.zoom(0) here anymore!
+		})
+		.catch(() => {
+			// If image fails, remove from pool and try again
+			pools[currentMode] = pools[currentMode].filter(loc => loc !== selectedPano);
+			loadValidPano();
+		});
+	}
+    loadValidPano();
+
+
+	function resetGame() {
+		document.getElementById('map-container').classList.remove('sticky-results');
+		
+		// Clear Map layers
+		map.eachLayer((layer) => {
+			if (!!layer.toGeoJSON && !layer._url) {
+				map.removeLayer(layer);
+			}
+		});
+
+		guessMarker = null;
+		
+		// Reset Viewer Zoom
+		viewer.zoom(0); 
+
+		// Reset Button
+		const btn = document.getElementById('guess-button');
+		btn.innerHTML = `<span>Make Guess</span>`;
+		btn.style.background = '#e67e22';
+		btn.onclick = makeGuessAction;
+
+		loadValidPano();
+		map.setView(dayzToLeaflet(3300, 10700), -3.2);
+	}
+
+	const makeGuessAction = () => {
+		if (!guessMarker) return alert("Drop your pin first");
+		const guessDayZ = leafletToDayZ(guessMarker.getLatLng());
+		const coords = selectedPano.match(/\d+/g);
+		const actualDayZ = { x: parseInt(coords[0]), y: parseInt(coords[1]) };
+		const distance = Math.round(Math.sqrt(Math.pow(guessDayZ.x-actualDayZ.x,2) + Math.pow(guessDayZ.y-actualDayZ.y,2)));
+		showResults(actualDayZ, distance);
+	};
+
+    /* 5. Gameplay Logic */
+    let guessMarker = null;
+    map.on('click', (e) => {
+        if (guessMarker) guessMarker.setLatLng(e.latlng);
+        else guessMarker = L.marker(e.latlng).addTo(map);
+    });
+
+	document.getElementById('guess-button').onclick = makeGuessAction;
+
+	function showResults(actualDayZ, distance) {
+		document.getElementById('map-container').classList.add('sticky-results');
+		const actualLeaflet = dayzToLeaflet(actualDayZ.x, actualDayZ.y);
+		const guessLeaflet = guessMarker.getLatLng();
+
+		// Add Green Marker
+		L.marker(actualLeaflet, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41] }) }).addTo(map);
+		
+		// Add view cone
+		const viewCone = L.semiCircle(actualLeaflet, { 
+			radius: 1200, 
+			fillColor: '#27ae60', 
+			fillOpacity: 0.3, 
+			color: '#27ae60', 
+			weight: 1, 
+			interactive: false 
+		}).addTo(map);
+		
+		const updateCone = () => {
+			const position = viewer.getPosition();
+			// yaw is in radians, convert to degrees for Leaflet Semicircle
+			const direction = position.yaw * 180 / Math.PI;
+			// hFov is the horizontal Field of View, which changes on zoom
+			const fov = viewer.state.hFov;
+			
+			viewCone.setDirection(direction, fov);
+		};
+		
+		viewer.addEventListener('position-updated', updateCone);
+		viewer.addEventListener('zoom-updated', updateCone);
+		updateCone();
+
+		// Add Red Line
+		L.polyline([guessLeaflet, actualLeaflet], { color: 'red', weight: 3 }).addTo(map);
+		
+		// Update Button to "Play Again"
+		const btn = document.getElementById('guess-button');
+		btn.innerHTML = `<span>${distance}m — Play Again</span>`;
+		btn.style.background = '#27ae60';
+		btn.onclick = resetGame; // Change the click action to our reset function
+
+		setTimeout(() => map.fitBounds(L.latLngBounds(guessLeaflet, actualLeaflet).pad(0.5), { maxZoom: -1 }), 350);
+	}
+
+    /* 6. Sidebar & Modal Logic */
+    function toggleSubmenu() { const s = document.getElementById('namalsk-submenu'); s.style.display = s.style.display==='block'?'none':'block'; }
+    function changeMode(m) { sessionStorage.setItem('gameMode', m); sessionStorage.removeItem('lastPano'); location.reload(); }
+    
+    const menuIcon = document.getElementById('menu-icon'), sidebar = document.getElementById('sidebar');
+    menuIcon.onclick = (e) => { sidebar.classList.toggle('open'); e.stopPropagation(); };
+    
+    document.addEventListener('click', (e) => {
+        if (!sidebar.contains(e.target) && e.target !== menuIcon && !document.getElementById('donate-modal').contains(e.target)) {
+            sidebar.classList.remove('open');
+        }
+    });
+
+    function openDonate() { document.getElementById('donate-modal').style.display = 'block'; }
+    function closeDonate() { document.getElementById('donate-modal').style.display = 'none'; }
+    function closeDonateViaBackdrop(e) { if (!document.getElementById('donate-content').contains(e.target)) closeDonate(); }
+    function openFullscreen(src) { document.getElementById('fullscreen-img').src = src; document.getElementById('qr-fullscreen').style.display = 'flex'; }
+    function closeFullscreen() { document.getElementById('qr-fullscreen').style.display = 'none'; }
+</script>
+</body>
+</html>

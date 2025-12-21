@@ -3,42 +3,51 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DayZ Geoguessr - Namalsk</title>
+    <title>Lambert's DayZ Guessr</title>
     
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5.8.2/index.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/compass-plugin@5.8.2/index.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-	<script data-goatcounter="https://code-lambert.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
-    
-	<style>
-/* --- Base Layout & Viewer --- */
+    <script>
+        /* --- Analytics Logic --- */
+        (function() {
+            var host = window.location.hostname;
+            if (host !== 'localhost' && host !== '127.0.0.1' && !host.startsWith('192.168.')) {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = '//gc.zgo.at/count.js';
+                s.dataset.goatcounter = 'https://dayzguessr.goatcounter.com/count';
+                document.head.appendChild(s);
+            }
+        })();
+    </script>
+
+    <style>
+/* --- 1. Base Layout & Viewer --- */
 html, body { 
     margin: 0; padding: 0; width: 100%; height: 100%; 
     overflow: hidden; font-family: sans-serif; background: #000; 
 }
 #viewer { width: 100vw; height: 100vh; z-index: 1; }
 
-/* --- Minimap Container (The "Hover Scale" Trick) --- */
+/* --- 2. Minimap Container --- */
 #map-container {
     position: absolute; bottom: 20px; right: 20px;
     width: 550px; 
     aspect-ratio: 5481 / 5502;
-    height: auto;
     z-index: 2000;
     background: rgba(0, 0, 0, 0.85);
     padding: 8px; border-radius: 12px;
     display: flex; flex-direction: column;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-	transform: scale(0.45);
+    transform: scale(0.45);
     transform-origin: bottom right;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 1;
 }
 
 #map-container:hover, #map-container.sticky-results {
     transform: scale(1);
-    opacity: 1;
 }
 
 #minimap { 
@@ -46,7 +55,7 @@ html, body {
     cursor: crosshair; background: #1a1a1a; 
 }
 
-/* --- The Guess Button & Inverse Text Scaling --- */
+/* --- 3. Guess Button & Inverse Scaling --- */
 #guess-button {
     margin-top: 10px; padding: 12px;
     background: #e67e22; color: white;
@@ -55,30 +64,21 @@ html, body {
     text-transform: uppercase; letter-spacing: 1px;
     width: 100%;
     display: flex; justify-content: center; align-items: center;
-    overflow: visible; /* Ensure text doesn't clip when scaled up */
 }
-
 #guess-button:hover { background: #d35400; }
 
-/* The Text Span: We counter-scale this so it stays 100% size visually */
 #guess-button span {
     display: inline-block;
     transition: transform 0.25s ease;
     white-space: nowrap;
 }
 
-/* When the map is SMALL (0.45x), scale the text UP (~2.22x) */
-#map-container:not(:hover):not(.sticky-results) #guess-button span {
-    transform: scale(2.22);
-}
-
-/* When the map is LARGE (1.0x), scale the text to NORMAL (1.0x) */
+/* Counter-scale text when map is small */
+#map-container:not(:hover):not(.sticky-results) #guess-button span { transform: scale(2.22); }
 #map-container:hover #guess-button span, 
-#map-container.sticky-results #guess-button span {
-    transform: scale(1);
-}
+#map-container.sticky-results #guess-button span { transform: scale(1); }
 
-/* --- Sidebar & Menu --- */
+/* --- 4. Sidebar & Menu --- */
 #menu-icon {
     position: absolute; top: 20px; left: 20px;
     font-size: 30px; color: white; cursor: pointer;
@@ -94,54 +94,78 @@ html, body {
     transition: left 0.3s ease;
     padding-top: 80px;
 }
-
 #sidebar.open { left: 0; }
 
-.menu-item { 
-    padding: 15px 25px; cursor: pointer; 
-    border-bottom: 1px solid #222; transition: 0.2s;
-}
-
+.menu-item { padding: 15px 25px; cursor: pointer; border-bottom: 1px solid #222; transition: 0.2s; }
 .menu-item:hover:not(.disabled) { color: #e67e22; background: #222; }
-
 .menu-item.active { color: #e67e22; font-weight: bold; }
-
-.submenu-item { 
-    padding: 12px 45px; cursor: pointer; 
-    font-size: 14px; background: #1a1a1a; 
-    border-bottom: 1px solid #222;
-}
-
+.submenu-item { padding: 12px 45px; cursor: pointer; font-size: 14px; background: #1a1a1a; border-bottom: 1px solid #222; }
 .submenu-item:hover { color: #e67e22; }
-
 .disabled { color: #666; cursor: not-allowed; font-style: italic; }
 
-/* --- Modals & Overlays --- */
+/* --- 5. Modals & Crypto Styles --- */
 .modal {
     display: none; position: fixed; z-index: 4000;
     left: 0; top: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
 }
-
 .modal-content {
     background: #111; margin: 10% auto; padding: 40px;
     border: 2px solid #444; width: 450px; border-radius: 20px;
     text-align: center; color: white; position: relative;
 }
 
-.crypto-panel { 
-    width: 100%; cursor: pointer; 
-    transition: transform 0.2s; margin-bottom: 15px; 
-}
-
+.crypto-panel { width: 100%; cursor: pointer; transition: transform 0.2s; margin-bottom: 15px; }
 .crypto-panel:hover { transform: scale(1.05); }
-
 .crypto-panel img { width: 100%; height: auto; display: block; border-radius: 8px; }
+
+.address-bar {
+    padding: 10px; border-radius: 8px; margin-top: 10px;
+    font-family: monospace; font-size: 11px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: all 0.2s; cursor: pointer; font-weight: bold;
+    width: 100%; box-sizing: border-box;
+}
+.address-text {
+    flex: 1; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; text-align: left;
+}
+.copy-icon { font-size: 14px; flex-shrink: 0; margin-left: 8px; }
+
+/* Brand Colors */
+.nano-bar { background: rgb(42, 58, 77); color: white; }
+.nano-bar:hover { background: rgb(52, 72, 96); border-color: #41b0d3; }
+
+.banano-bar { background: rgb(251, 221, 17); color: #000; border: 1px solid rgba(0,0,0,0.1); }
+.banano-bar:hover { background: rgb(214, 188, 14); border-color: #000; }
 
 .fullscreen-overlay {
     display: none; position: fixed; top: 0; left: 0;
     width: 100%; height: 100%; background: rgba(0,0,0,0.95);
     z-index: 5000; flex-direction: column; justify-content: center; align-items: center;
+}
+
+/* --- 6. Mobile Responsiveness --- */
+@media screen and (max-width: 1024px) {
+    #map-container { width: 320px; bottom: 10px; right: 10px; transform: scale(0.6); }
+    #map-container:hover, #map-container.sticky-results { transform: scale(1.1); }
+    #guess-button { padding: 8px; font-size: 12px; }
+    #map-container:not(:hover):not(.sticky-results) #guess-button span { transform: scale(1.66); }
+    
+    .modal-content { width: 85% !important; max-width: 400px; margin: 15% auto; padding: 20px; box-sizing: border-box; }
+    .crypto-panel { margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+    .crypto-panel img { max-width: 200px; margin: 0 auto; }
+}
+
+@media screen and (max-height: 450px) and (orientation: landscape) {
+    #map-container { width: 250px; transform: scale(0.8); }
+    #map-container:hover, #map-container.sticky-results { transform: scale(1.4); }
+    #donate-modal .modal-content { margin: 2% auto; padding: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 500px; }
+    #donate-modal h2 { width: 100%; font-size: 1.2rem; margin: 5px 0; }
+    #donate-modal .crypto-panel { width: 45%; margin-bottom: 0; }
+    .address-bar { font-size: 9px; padding: 6px; }
+    .crypto-panel img { max-width: 100px; }
 }
     </style>
 </head>
@@ -162,17 +186,27 @@ html, body {
 
 <div id="map-container">
     <div id="minimap"></div>
-	<button id="guess-button"><span>Make Guess</span></button>
+    <button id="guess-button"><span>Make Guess</span></button>
 </div>
 
 <div id="donate-modal" class="modal" onclick="closeDonateViaBackdrop(event)">
     <div class="modal-content" id="donate-content">
         <h2 style="color: #f1c40f;">Support the Project</h2>
-        <div class="crypto-panel" onclick="openFullscreen('images/donate-nano-qr.png')">
-            <img src="images/donate-nano-qr.png">
+        
+        <div class="crypto-panel">
+            <img src="images/donate-nano-qr.png" onclick="openFullscreen('images/donate-nano-qr.png')">
+            <div class="address-bar nano-bar" onclick="copyText('nano_3zp987sjb35xroe1eyrh17dgucxtfss618dmat8frzf4aioamggtebqrops1', this, true)">
+                <span class="address-text">nano_3zp987sjb35xroe1eyrh17dgucxtfss618dmat8frzf4aioamggtebqrops1</span>
+                <span class="copy-icon">📋</span>
+            </div>
         </div>
-        <div class="crypto-panel" onclick="openFullscreen('images/donate-banano-qr.png')">
-            <img src="images/donate-banano-qr.png">
+
+        <div class="crypto-panel">
+            <img src="images/donate-banano-qr.png" onclick="openFullscreen('images/donate-banano-qr.png')">
+            <div class="address-bar banano-bar" onclick="copyText('ban_3yncfxdyissa7q1e8b3jsoox9eatj57g4dfk8o9znxt7sobdnnuf3zufqapc', this, false)">
+                <span class="address-text">ban_3yncfxdyissa7q1e8b3jsoox9eatj57g4dfk8o9znxt7sobdnnuf3zufqapc</span>
+                <span class="copy-icon">📋</span>
+            </div>
         </div>
     </div>
 </div>
@@ -209,8 +243,10 @@ html, body {
 
     let currentMode = sessionStorage.getItem('gameMode') || 'spawns';
     let selectedPano = "";
+    let isResultsState = false;
+    let guessMarker = null;
 
-    /* 2. Coordinate Math */
+    /* 2. Coordinate System Mapping */
     const imgWidth = 5481, imgHeight = 5502;
     const bounds = [[0, 0], [imgHeight, imgWidth]];
 
@@ -227,7 +263,7 @@ html, body {
         };
     }
 
-    /* 3. Initialize Map */
+    /* 3. Initialize Leaflet Map */
     const map = L.map('minimap', {
         crs: L.CRS.Simple,
         minZoom: -3.5, maxZoom: 2, zoomControl: false,
@@ -235,138 +271,116 @@ html, body {
         maxBounds: bounds, maxBoundsViscosity: 1.0
     });
     L.imageOverlay('images/NamalskMap.png', bounds).addTo(map);
-    map.setView(dayzToLeaflet(3300, 10700), -3.2);
-    setTimeout(() => map.invalidateSize(), 0);
+    const gameLayers = L.layerGroup().addTo(map);
+    map.setView(dayzToLeaflet(5700, 8300), -3.2);
 
     /* 4. Initialize Viewer & Randomizer */
-	const viewer = new PhotoSphereViewer.Viewer({
-		container: '#viewer',
-		navbar: false,
-		zoomSpeed: 5,
-		defaultFov: 90,
-		maxFov: 90,
-		minFov: 10,
-		plugins: [[PhotoSphereViewer.CompassPlugin, { size: '120px', position: 'top right' }]]
-	});
-
-	function loadValidPano() {
-		const lastPano = sessionStorage.getItem('lastPano');
-		const available = pools[currentMode].filter(loc => loc !== lastPano);
-		
-		if (available.length === 0) {
-			sessionStorage.removeItem('lastPano');
-			return loadValidPano();
-		}
-
-		selectedPano = available[Math.floor(Math.random() * available.length)];
-
-		// We pass the reset options as the second argument to setPanorama
-		viewer.setPanorama(`images/namalsk/${currentMode}/${selectedPano}`, {
-			position: { yaw: 0, pitch: 0 },
-			zoom: 0,
-			transition: false // Set to true if you want a smooth fade instead of a snap
-		})
-		.then(() => {
-			sessionStorage.setItem('lastPano', selectedPano);
-			// No need for viewer.zoom(0) here anymore!
-		})
-		.catch(() => {
-			// If image fails, remove from pool and try again
-			pools[currentMode] = pools[currentMode].filter(loc => loc !== selectedPano);
-			loadValidPano();
-		});
-	}
-    loadValidPano();
-
-
-	function resetGame() {
-		document.getElementById('map-container').classList.remove('sticky-results');
-		
-		// Clear Map layers
-		map.eachLayer((layer) => {
-			if (!!layer.toGeoJSON && !layer._url) {
-				map.removeLayer(layer);
-			}
-		});
-
-		guessMarker = null;
-		
-		// Reset Viewer Zoom
-		viewer.zoom(0); 
-
-		// Reset Button
-		const btn = document.getElementById('guess-button');
-		btn.innerHTML = `<span>Make Guess</span>`;
-		btn.style.background = '#e67e22';
-		btn.onclick = makeGuessAction;
-
-		loadValidPano();
-		map.setView(dayzToLeaflet(3300, 10700), -3.2);
-	}
-
-	const makeGuessAction = () => {
-		if (!guessMarker) return alert("Drop your pin first");
-		const guessDayZ = leafletToDayZ(guessMarker.getLatLng());
-		const coords = selectedPano.match(/\d+/g);
-		const actualDayZ = { x: parseInt(coords[0]), y: parseInt(coords[1]) };
-		const distance = Math.round(Math.sqrt(Math.pow(guessDayZ.x-actualDayZ.x,2) + Math.pow(guessDayZ.y-actualDayZ.y,2)));
-		showResults(actualDayZ, distance);
-	};
-
-    /* 5. Gameplay Logic */
-    let guessMarker = null;
-    map.on('click', (e) => {
-        if (guessMarker) guessMarker.setLatLng(e.latlng);
-        else guessMarker = L.marker(e.latlng).addTo(map);
+    const viewer = new PhotoSphereViewer.Viewer({
+        container: '#viewer',
+        navbar: false,
+        zoomSpeed: 5,
+        defaultFov: 90, maxFov: 90, minFov: 10,
+        plugins: [[PhotoSphereViewer.CompassPlugin, { size: '120px', position: 'top right' }]]
     });
 
-	document.getElementById('guess-button').onclick = makeGuessAction;
+    const guessIcon = L.divIcon({
+        html: '<div style="width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #e74c3c; font-weight: bold; text-shadow: 1px 1px 2px black;">X</div>',
+        className: 'custom-pin', iconSize: [30, 30], iconAnchor: [15, 15]
+    });
 
-	function showResults(actualDayZ, distance) {
-		document.getElementById('map-container').classList.add('sticky-results');
-		const actualLeaflet = dayzToLeaflet(actualDayZ.x, actualDayZ.y);
-		const guessLeaflet = guessMarker.getLatLng();
+    const correctIcon = L.divIcon({
+        html: '<div style="width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; font-size: 24px; text-shadow: 1px 1px 2px black;">✅</div>',
+        className: 'custom-pin', iconSize: [30, 30], iconAnchor: [15, 15]
+    });
 
-		// Add Green Marker
-		L.marker(actualLeaflet, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41] }) }).addTo(map);
-		
-		// Add view cone
-		const viewCone = L.semiCircle(actualLeaflet, { 
-			radius: 1200, 
-			fillColor: '#27ae60', 
-			fillOpacity: 0.3, 
-			color: '#27ae60', 
-			weight: 1, 
-			interactive: false 
-		}).addTo(map);
-		
-		const updateCone = () => {
-			const position = viewer.getPosition();
-			// yaw is in radians, convert to degrees for Leaflet Semicircle
-			const direction = position.yaw * 180 / Math.PI;
-			// hFov is the horizontal Field of View, which changes on zoom
-			const fov = viewer.state.hFov;
-			
-			viewCone.setDirection(direction, fov);
-		};
-		
-		viewer.addEventListener('position-updated', updateCone);
-		viewer.addEventListener('zoom-updated', updateCone);
-		updateCone();
+    function loadValidPano() {
+        const lastPano = sessionStorage.getItem('lastPano');
+        const available = pools[currentMode].filter(loc => loc !== lastPano);
+        
+        if (available.length === 0) {
+            sessionStorage.removeItem('lastPano');
+            return loadValidPano();
+        }
 
-		// Add Red Line
-		L.polyline([guessLeaflet, actualLeaflet], { color: 'red', weight: 3 }).addTo(map);
-		
-		// Update Button to "Play Again"
-		const btn = document.getElementById('guess-button');
-		btn.innerHTML = `<span>${distance}m — Play Again</span>`;
-		btn.style.background = '#27ae60';
-		btn.onclick = resetGame; // Change the click action to our reset function
+        selectedPano = available[Math.floor(Math.random() * available.length)];
+        viewer.setPanorama(`images/namalsk/${currentMode}/${selectedPano}`, {
+            position: { yaw: 0, pitch: 0 },
+            zoom: 0,
+            transition: false
+        })
+        .then(() => sessionStorage.setItem('lastPano', selectedPano))
+        .catch(() => {
+            pools[currentMode] = pools[currentMode].filter(loc => loc !== selectedPano);
+            loadValidPano();
+        });
+    }
+    loadValidPano();
 
-		setTimeout(() => map.fitBounds(L.latLngBounds(guessLeaflet, actualLeaflet).pad(0.5), { maxZoom: -1 }), 350);
-	}
+    /* 5. Gameplay Logic */
+    function resetGame() {
+        isResultsState = false;
+        document.getElementById('map-container').classList.remove('sticky-results');
+        gameLayers.clearLayers();
+        guessMarker = null;
 
-    /* 6. Sidebar & Modal Logic */
+        const btn = document.getElementById('guess-button');
+        btn.innerHTML = `<span>Make Guess</span>`;
+        btn.style.background = '#e67e22';
+        btn.onclick = makeGuessAction;
+
+        loadValidPano();
+        map.setView(dayzToLeaflet(5700, 8300), -3.2);
+    }
+
+    const makeGuessAction = () => {
+        if (!guessMarker) return alert("Drop your pin first");
+        const guessDayZ = leafletToDayZ(guessMarker.getLatLng());
+        const coords = selectedPano.match(/\d+/g);
+        const actualDayZ = { x: parseInt(coords[0]), y: parseInt(coords[1]) };
+        const distance = Math.round(Math.sqrt(Math.pow(guessDayZ.x-actualDayZ.x,2) + Math.pow(guessDayZ.y-actualDayZ.y,2)));
+        showResults(actualDayZ, distance);
+    };
+
+    map.on('click', (e) => {
+        if (isResultsState) return; 
+        if (guessMarker) guessMarker.setLatLng(e.latlng);
+        else guessMarker = L.marker(e.latlng, { icon: guessIcon }).addTo(gameLayers);
+    });
+
+    document.getElementById('guess-button').onclick = makeGuessAction;
+
+    function showResults(actualDayZ, distance) {
+        isResultsState = true;
+        document.getElementById('map-container').classList.add('sticky-results');
+        const actualLeaflet = dayzToLeaflet(actualDayZ.x, actualDayZ.y);
+        const guessLeaflet = guessMarker.getLatLng();
+
+        L.marker(actualLeaflet, { icon: correctIcon }).addTo(gameLayers);
+        
+        const viewCone = L.semiCircle(actualLeaflet, { 
+            radius: 1200, fillColor: '#27ae60', fillOpacity: 0.3, color: '#27ae60', weight: 1, interactive: false 
+        }).addTo(gameLayers);
+        
+        const updateCone = () => {
+            const position = viewer.getPosition();
+            viewCone.setDirection(position.yaw * 180 / Math.PI, viewer.state.hFov);
+        };
+        
+        viewer.addEventListener('position-updated', updateCone);
+        viewer.addEventListener('zoom-updated', updateCone);
+        updateCone();
+
+        L.polyline([guessLeaflet, actualLeaflet], { color: 'red', weight: 3 }).addTo(gameLayers);
+        
+        const btn = document.getElementById('guess-button');
+        btn.innerHTML = `<span>${distance}m — Play Again</span>`;
+        btn.style.background = '#27ae60';
+        btn.onclick = resetGame;
+
+        setTimeout(() => map.fitBounds(L.latLngBounds(guessLeaflet, actualLeaflet).pad(0.5), { maxZoom: -1 }), 350);
+    }
+
+    /* 6. Sidebar & Utility Logic */
     function toggleSubmenu() { const s = document.getElementById('namalsk-submenu'); s.style.display = s.style.display==='block'?'none':'block'; }
     function changeMode(m) { sessionStorage.setItem('gameMode', m); sessionStorage.removeItem('lastPano'); location.reload(); }
     
@@ -378,6 +392,22 @@ html, body {
             sidebar.classList.remove('open');
         }
     });
+    
+    function copyText(text, element, isWhiteText) {
+        navigator.clipboard.writeText(text).then(() => {
+            const textSpan = element.querySelector('.address-text');
+            const originalText = textSpan.innerText;
+            textSpan.innerText = "Address Copied!";
+            element.style.background = "#27ae60";
+            element.style.color = "white";
+            
+            setTimeout(() => {
+                textSpan.innerText = originalText;
+                element.style.background = ""; 
+                element.style.color = isWhiteText ? "white" : "black";
+            }, 1200);
+        });
+    }
 
     function openDonate() { document.getElementById('donate-modal').style.display = 'block'; }
     function closeDonate() { document.getElementById('donate-modal').style.display = 'none'; }

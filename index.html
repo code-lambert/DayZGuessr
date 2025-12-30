@@ -89,6 +89,38 @@
 
         .poi-anchor { background: transparent; border: none; }
 
+		/* --- Deerstand/Feedshack Icons --- */
+		.static-target-icon {
+			transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+			cursor: pointer;
+			filter: drop-shadow(0 2px 2px rgba(0,0,0,0.8));
+		}
+
+		.static-target-icon:hover {
+			transform: scale(1.2);
+			filter: drop-shadow(0 0 5px #f1c40f);
+		}
+
+		/* When the user clicks one, we add this class */
+		.static-target-icon.selected {
+			transform: scale(1.4);
+			filter: drop-shadow(0 0 8px #e74c3c);
+			z-index: 5000 !important; /* Always on top */
+			border: 2px solid #e74c3c;
+			border-radius: 4px;
+			background: rgba(231, 76, 60, 0.2);
+		}
+		
+		/* --- Correct Target (Green) --- */
+		.static-target-icon.correct-target {
+			transform: scale(1.4);
+			filter: drop-shadow(0 0 8px #2ecc71); /* Green Glow */
+			z-index: 6000 !important; /* Higher than 'selected' (red) */
+			border: 2px solid #2ecc71;
+			border-radius: 4px;
+			background: rgba(46, 204, 113, 0.2);
+		}
+
         /* --- Location Labels Styling --- */
         .location-label {
             display: flex;
@@ -206,6 +238,36 @@
             width: 450px; border-radius: 20px; text-align: center; color: white; position: relative;
         }
 
+		/* The switch - the box around the slider */
+		.switch {
+		  position: relative;
+		  display: inline-block;
+		  width: 40px;
+		  height: 22px;
+		}
+
+		/* Hide default HTML checkbox */
+		.switch input { opacity: 0; width: 0; height: 0; }
+
+		/* The slider */
+		.slider {
+		  position: absolute; cursor: pointer;
+		  top: 0; left: 0; right: 0; bottom: 0;
+		  background-color: #444;
+		  transition: .4s; border-radius: 34px;
+		}
+
+		.slider:before {
+		  position: absolute; content: "";
+		  height: 16px; width: 16px;
+		  left: 3px; bottom: 3px;
+		  background-color: white;
+		  transition: .4s; border-radius: 50%;
+		}
+
+		input:checked + .slider { background-color: #e67e22; }
+		input:checked + .slider:before { transform: translateX(18px); }
+
         .crypto-panel { width: 100%; cursor: pointer; transition: transform 0.2s; margin-bottom: 15px; }
         .crypto-panel:hover { transform: scale(1.05); }
         .crypto-panel img { width: 100%; height: auto; display: block; border-radius: 8px; }
@@ -260,7 +322,7 @@
     <div class="menu-item active" onclick="toggleChernarusSubmenu()">Chernarus &#9662;</div>
     <div id="chernarus-submenu" style="display: block;">
         <div class="submenu-item" onclick="changeMode('chernarusSpawns', this)">Spawns (Work In Progress)</div>
-        <div class="submenu-item disabled">Deer Stands (Coming Soon)</div>
+        <div class="submenu-item" onclick="changeMode('chernarusDeerstands', this)">Deerstands (Work In Progress)</div>
     </div>
 
     <div class="menu-item active" onclick="toggleNamalskSubmenu()">Namalsk &#9662;</div>
@@ -270,6 +332,15 @@
     </div>
 
     <div class="menu-item" style="color: #f1c40f;" onclick="openDonate()">Donate</div>
+	<div class="menu-item" onclick="openAbout()">About</div>
+	
+	<div class="menu-item" style="display: flex; justify-content: space-between; align-items: center; cursor: default;">
+		<span>Compass</span>
+		<label class="switch">
+			<input type="checkbox" checked onclick="toggleCompass()">
+			<span class="slider round"></span>
+		</label>
+	</div>
 </div>
 
 <div id="viewer"></div>
@@ -301,6 +372,19 @@
     </div>
 </div>
 
+<div id="about-modal" class="modal" onclick="closeAboutViaBackdrop(event)">
+    <div class="modal-content">
+        <h2 style="color: #e67e22; margin-top: 0;">About</h2>
+        <p>Lambert's DayZGuessr by Lambert & Gemini</p>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+        <p style="font-size: 14px; color: #aaa;">Map assets used with permission from dayz.xam.nu</p>
+        <button onclick="document.getElementById('about-modal').style.display='none'" 
+                style="margin-top:20px; padding:10px 25px; background:#e67e22; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">
+            Close
+        </button>
+    </div>
+</div>
+
 <div id="qr-fullscreen" class="fullscreen-overlay" onclick="closeFullscreen()">
     <img id="fullscreen-img" style="max-width: 90%; max-height: 80%; border-radius: 10px;">
     <p style="color: #666; margin-top: 20px;">Click to close</p>
@@ -318,6 +402,10 @@ const pools = {
     chernarusSpawns: [
         '6063,1931.webp', '5933,2171.webp'
     ],
+	chernarusDeerstands: [
+		'80,4422,20,f.webp', '80,10449,31,f.webp', '151,3655,-86,f.webp', '178,7858,-84,f.webp', '139,14356,145,f.webp',
+		'196,11741,2,f.webp', '258,4340,34,d.webp', '275,5026,131,d.webp'
+	],
     namalskSpawns: [
         '6065,11802.webp', '4182,11026.webp', '5102,11307.webp', '4363,10578.webp', '5893,11701.webp',
         '4186,10754.webp', '4990,11358.webp', '4776,11213.webp', '6363,11921.webp', '5008,11099.webp',
@@ -409,6 +497,42 @@ const correctIcon = L.divIcon({
     iconSize: [20, 20],
     iconAnchor: [10, 10]
 });
+
+const deerstandIcon = L.icon({
+    iconUrl: 'images/icons/icon_deerstand.webp',
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+    className: 'static-target-icon'
+});
+
+const feedshackIcon = L.icon({
+    iconUrl: 'images/icons/icon_feedshack.webp',
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+    className: 'static-target-icon'
+});
+
+// --- Helper: Parse Filename ---
+function parseLocationInfo(filename) {
+    const cleanName = filename.replace('.webp', '');
+    const parts = cleanName.split(',');
+
+    let info = {
+        x: parseFloat(parts[0]),
+        z: parseFloat(parts[1]),
+        heading: 0, 
+        type: null
+    };
+
+    if (parts.length >= 3) {
+        info.heading = parseFloat(parts[2]); // Handles '31' and '-31'
+    }
+    if (parts.length >= 4) {
+        info.type = parts[3];
+    }
+    
+    return info;
+}
 
 // Map Logic
 function initLeaflet() {
@@ -547,18 +671,54 @@ const viewer = new PhotoSphereViewer.Viewer({
     plugins: [[PhotoSphereViewer.CompassPlugin, { size: '120px', position: 'top right' }]]
 });
 
+let selectedStaticMarker = null; // Track the user's selection
+
+function setupDeerstandMap() {
+    // 1. Get all locations from the pool
+    const locs = pools.chernarusDeerstands;
+
+    locs.forEach(filename => {
+        const info = parseLocationInfo(filename);
+        
+        // Convert DayZ x/z to Leaflet LatLng
+        const latlng = dayzToLatLng(info.x, info.z);
+
+        // Determine Icon
+        let iconToUse = deerstandIcon;
+        if (info.type === 'f') iconToUse = feedshackIcon;
+
+        // Create Marker
+        const marker = L.marker(latlng, { 
+            icon: iconToUse,
+            interactive: true 
+        }).addTo(gameLayers);
+
+        // Click Event for Selection
+        marker.on('click', (e) => {
+            if (isResultsState) return; // Can't change guess after results
+
+            // Deselect previous
+            if (selectedStaticMarker) {
+                L.DomUtil.removeClass(selectedStaticMarker.getElement(), 'selected');
+            }
+
+            // Select New
+            selectedStaticMarker = marker;
+            L.DomUtil.addClass(marker.getElement(), 'selected');
+            
+            // Allow making a guess
+            guessMarker = marker; // We repurpose this global so makeGuessAction works
+        });
+    });
+}
+
 function loadValidPano() {
     const lastPano = sessionStorage.getItem('lastPano');
     const currentPool = pools[currentMode];
 
-    if (!currentPool) {
-        console.error(`Mode '${currentMode}' is not defined in pools. Resetting to default.`);
-        sessionStorage.removeItem('lastPano');
-        return;
-    }
+    if (!currentPool) return;
 
     const available = currentPool.filter(loc => loc !== lastPano);
-
     if (available.length === 0) {
         sessionStorage.removeItem('lastPano');
         return loadValidPano();
@@ -566,42 +726,56 @@ function loadValidPano() {
 
     selectedPano = available[Math.floor(Math.random() * available.length)];
     const folder = currentMapID;
+    const locInfo = parseLocationInfo(selectedPano);
+
+    // If it's a deerstand mode, we use the correction. 
+    // If not, correction is 0 (North-facing).
+    const correctionPan = currentMode === 'chernarusDeerstands' ? -locInfo.heading : 0;
 
     viewer.setPanorama(`images/panos/${folder}/${currentMode}/${selectedPano}`, {
-        position: { yaw: 0, pitch: 0 },
-        zoom: 0,
-        transition: false
-    })
-    .then(() => sessionStorage.setItem('lastPano', selectedPano))
-    .catch(() => {
-        pools[currentMode] = pools[currentMode].filter(loc => loc !== selectedPano);
-        loadValidPano();
+        sphereCorrection: { pan: correctionPan + 'deg' },
+        transition: false,
+        showLoader: false
+    }).then(() => {
+        sessionStorage.setItem('lastPano', selectedPano);
+        // Force the camera to look at the corrected "0" (which is now your target)
+        viewer.rotate({ yaw: 0, pitch: 0 });
     });
 }
 
 function makeGuessAction() {
-    if (!guessMarker) return alert("Drop your pin first");
+    if (!guessMarker) {
+        if (currentMode === 'chernarusDeerstands') return alert("Select a location on the map first!");
+        return alert("Drop your pin first");
+    }
 
+    // Get Guess Coords
     const guessDayZ = latLngToDayZ(guessMarker.getLatLng());
-    const coords = selectedPano.match(/\d+/g);
-    const actualDayZ = { x: parseInt(coords[0]), z: parseInt(coords[1]) };
+    
+    // Get Actual Coords (Using new parser)
+    const actualInfo = parseLocationInfo(selectedPano);
+    
+    // Calculate Distance
     const distance = Math.round(Math.sqrt(
-        Math.pow(guessDayZ.x - actualDayZ.x, 2) +
-        Math.pow(guessDayZ.z - actualDayZ.z, 2)
+        Math.pow(guessDayZ.x - actualInfo.x, 2) +
+        Math.pow(guessDayZ.z - actualInfo.z, 2)
     ));
-    showResults(actualDayZ, distance);
+    
+    // Pass the whole info object just in case we need it later
+    showResults(actualInfo, distance);
 }
 
 let activeCone = null;
 
-function showResults(actualDayZ, distance) {
+function showResults(actualInfo, distance) {
     isResultsState = true;
     document.getElementById('map-container').classList.add('sticky-results');
 
-    const actualLatLng = dayzToLatLng(actualDayZ.x, actualDayZ.z);
+    const actualLatLng = dayzToLatLng(actualInfo.x, actualInfo.z);
 
+    // 1. Vision Cone (Same as before)
     activeCone = L.semiCircle(actualLatLng, {
-        radius: 15,
+        radius: 10,
         color: '#e67e22',
         fillColor: '#e67e22',
         fillOpacity: 0.4,
@@ -610,23 +784,66 @@ function showResults(actualDayZ, distance) {
     }).addTo(gameLayers);
 
     updateConeOrientation();
-
     viewer.addEventListener('position-updated', updateConeOrientation);
     viewer.addEventListener('zoom-updated', updateConeOrientation);
 
-    const actualMarker = L.marker(actualLatLng, { icon: correctIcon, zIndexOffset: 2000 }).addTo(gameLayers);
-    const relevantLayers = [activeCone, actualMarker];
+    // 2. Marker Logic (Split based on Mode)
+    let relevantLayers = [activeCone];
 
-    if (guessMarker) {
-        const guessLine = L.polyline([guessMarker.getLatLng(), actualLatLng], {
-            color: '#e74c3c', weight: 3, dashArray: '10, 10', interactive: false
-        }).addTo(gameLayers);
-        relevantLayers.push(guessLine, guessMarker);
+    if (currentMode === 'chernarusDeerstands') {
+        // --- DEERSTAND MODE: Highlight existing icon green ---
+        
+        // Loop through layers to find the correct marker
+        gameLayers.eachLayer(layer => {
+            // Check if it's one of our target icons
+            if (layer.options.icon && layer.options.icon.options.className === 'static-target-icon') {
+                
+                // Get marker coordinates
+                const layerDayZ = latLngToDayZ(layer.getLatLng());
+
+                // Compare with actual coordinates (allow tiny margin of error for float math)
+                if (Math.abs(layerDayZ.x - actualInfo.x) < 2 && Math.abs(layerDayZ.z - actualInfo.z) < 2) {
+                    
+                    // If the user guessed this (it's Red), remove Red so it becomes Green
+                    if (L.DomUtil.hasClass(layer.getElement(), 'selected')) {
+                        L.DomUtil.removeClass(layer.getElement(), 'selected');
+                    }
+
+                    // Add Green Class
+                    L.DomUtil.addClass(layer.getElement(), 'correct-target');
+                    
+                    // Force Z-Index to top (Leaflet specific method for markers)
+                    layer.setZIndexOffset(10000); 
+                }
+            }
+        });
+
+    } else {
+        // --- STANDARD MODE: Drop the checkmark ---
+        const actualMarker = L.marker(actualLatLng, { icon: correctIcon, zIndexOffset: 2000 }).addTo(gameLayers);
+        relevantLayers.push(actualMarker);
     }
 
-    const group = new L.featureGroup(relevantLayers);
-    map.fitBounds(group.getBounds().pad(0.3));
+    // 3. Draw Line & Grouping (Same as before)
+    if (guessMarker) {
+        // Only draw line if distance is significant (prevents messy overlap on correct guesses)
+        if (distance > 5) {
+            const guessLine = L.polyline([guessMarker.getLatLng(), actualLatLng], {
+                color: '#e74c3c', weight: 3, dashArray: '10, 10', interactive: false
+            }).addTo(gameLayers);
+            relevantLayers.push(guessLine);
+        }
+        relevantLayers.push(guessMarker);
+    }
 
+    // Fit bounds to show both points
+    const group = new L.featureGroup(relevantLayers);
+    // Use smaller padding for better fit
+    if(relevantLayers.length > 1) { 
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+
+    // 4. Update Button
     const btn = document.getElementById('guess-button');
     btn.innerHTML = `<span>Next Round (${distance}m away)</span>`;
     btn.onclick = () => {
@@ -652,6 +869,7 @@ function updateConeOrientation() {
 
 function resetGame() {
     isResultsState = false;
+    selectedStaticMarker = null;
 
     document.getElementById('map-container').classList.remove('sticky-results');
     const btn = document.getElementById('guess-button');
@@ -661,11 +879,29 @@ function resetGame() {
     gameLayers.clearLayers();
     guessMarker = null;
 
-    viewer.removeEventListener('position-updated', updateConeOrientation);
-    viewer.removeEventListener('zoom-updated', updateConeOrientation);
-    activeCone = null;
+    if (activeCone) {
+        viewer.removeEventListener('position-updated', updateConeOrientation);
+        viewer.removeEventListener('zoom-updated', updateConeOrientation);
+        activeCone = null;
+    }
 
+    // --- CHECK MODE ---
+    if (currentMode === 'chernarusDeerstands') {
+        map.off('click'); // Disable background clicking
+        setupDeerstandMap(); // Load the specific icons
+    } else {
+        map.off('click'); 
+        map.on('click', (e) => {
+            if (isResultsState) return;
+            if (guessMarker) guessMarker.setLatLng(e.latlng);
+            else guessMarker = L.marker(e.latlng, { icon: guessIcon }).addTo(gameLayers);
+        });
+    }
+
+    // Now load the pano
     loadValidPano();
+    
+    // Center map
     const cfg = mapConfigs[currentMapID];
     const center = map.unproject([cfg.realWidthPx / 2, cfg.realHeightPx / 2], cfg.maxZoom);
     map.setView(center, cfg.minZoom);
@@ -674,11 +910,15 @@ function resetGame() {
 // Event Handlers & UI Logic
 document.addEventListener('DOMContentLoaded', () => {
     initLeaflet();
-    loadValidPano();
-    map.on('click', (e) => {
+    resetGame();
+    
+	map.on('click', (e) => {
         if (isResultsState) return;
-        if (guessMarker) guessMarker.setLatLng(e.latlng);
-        else guessMarker = L.marker(e.latlng, { icon: guessIcon }).addTo(gameLayers);
+        // Only allow clicking the map background if NOT in deerstand mode
+        if (currentMode !== 'chernarusDeerstands') {
+             if (guessMarker) guessMarker.setLatLng(e.latlng);
+             else guessMarker = L.marker(e.latlng, { icon: guessIcon }).addTo(gameLayers);
+        }
     });
 
     const guessBtn = document.getElementById('guess-button');
@@ -770,6 +1010,29 @@ function copyText(text, element, isWhiteText) {
             element.style.background = "";
         }, 1200);
     });
+}
+
+// --- About Modal Logic ---
+function openAbout() {
+    document.getElementById('about-modal').style.display = 'block';
+}
+
+function closeAboutViaBackdrop(event) {
+    if (event.target.id === 'about-modal') {
+        document.getElementById('about-modal').style.display = 'none';
+    }
+}
+
+// --- Compass Toggle ---
+let compassEnabled = true;
+function toggleCompass() {
+    const compass = viewer.getPlugin(PhotoSphereViewer.CompassPlugin);
+    if (compassEnabled) {
+        compass.hide();
+    } else {
+        compass.show();
+    }
+    compassEnabled = !compassEnabled;
 }
 </script>
 </body>
